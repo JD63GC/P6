@@ -11,7 +11,7 @@ random.seed(42)
 aalborg = Topos(latitude_degrees=57.0488,
                 longitude_degrees=9.9217)
 
-
+elevation = 25
 
 # Hent satellitdata (Starlink)
 stations_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle'
@@ -26,7 +26,7 @@ print(f'Antal satellitter loaded: {len(satellites)}')
 ts = load.timescale()
 
 # Antal snapshots
-NUM_SNAPSHOTS = 200
+NUM_SNAPSHOTS = 500
 
 # tilfældige tidspunkter over 30 dage
 START_DATE = datetime(2026, 1, 1)
@@ -47,7 +47,7 @@ def count_visible_satellites(t):
         alt, az, distance = topocentric.altaz()
 
         # Satellitten skal være synlig
-        if alt.degrees > 0:  # Minimum højde over horisonten 
+        if alt.degrees > elevation:  # Minimum højde over horisonten 
             #(burde være 25 grader for at være realistisk)
 
             # Random resourceblok fra 1-20
@@ -150,29 +150,29 @@ poisson_expected = poisson_probs * NUM_SNAPSHOTS
 # Plot
 # ---------------------------------------------------
 
-plt.figure(figsize=(10,6))
+fig, ax1 = plt.subplots(figsize=(7,5))
 
 # Simulation histogram
-plt.bar(x, y, alpha=0.7, label='Simulation')
+ax1.bar(x, y, alpha=0.7, label=f'Simulation($\\theta$={elevation}°)', color='tab:blue')
 
 # Poisson kurve
-plt.plot(
+ax1.plot(
     x_poisson,
     poisson_expected,
     linewidth=2,
-    label=f'Poisson($\\mu$={mu:.2f})'
+    label=f'Poisson($\\mu$={mu:.2f})',
+    color='tab:red',
 )
 
-plt.xlabel('Antal synlige satellitter')
-plt.ylabel('Antal snapshots')
+ax1.set_xlabel('Number of visible satellites')
+ax1.set_ylabel('Number of snapshots', color='tab:blue')
 
-plt.title(
-    'Simulation vs. Poisson model\n'
-    'Starlink satellitter over Aalborg'
-)
+# Højre y-akse (kun label her)
+ax2 = ax1.twinx()
+ax2.set_ylabel('Probability (Poisson)', color='tab:red')
 
-plt.legend()
 
-plt.grid(True)
+ax1.legend()
+ax1.grid(True)
 
 plt.show()

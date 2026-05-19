@@ -13,7 +13,7 @@ rE = 6400e3
 ra = 550e3
 rS = rE + ra
 
-n_iter = 10000
+n_iter = 100
 
 mu = 190
 lambda_ = mu / (4 * np.pi * rS**2)

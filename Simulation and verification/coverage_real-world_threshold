@@ -1,0 +1,202 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import poisson
+
+# ============================================================
+# PARAMETERS (EDIT THESE)
+# ============================================================
+
+lambda_sat = 1.0e-12   # Satellite density λ
+alpha = 2.0            # Path loss exponent α
+h = 550e3              # Altitude h [m]
+
+# Optional tuning factor for BPP
+lambda_tuning = 0.75
+
+# Simulation parameters
+num_realizations = 10
+gamma_db = np.arange(-10, 21, 2)
+gamma_lin = 10**(gamma_db / 10)
+
+# Earth and satellite geometry
+R_E = 6371e3
+R_S = R_E + h
+
+# Visible spherical cap approximation
+# ------------------------------------------------------------
+# Approximate visible area from a ground receiver
+theta_max = np.arccos(R_E / R_S)
+
+visible_area = 2 * np.pi * R_S**2 * (1 - np.cos(theta_max))
+
+# Expected number of visible satellites
+mu_visible = lambda_sat * visible_area
+
+# ============================================================
+# HELPER FUNCTIONS
+# ============================================================
+
+def random_satellite_distance():
+    """
+    Generate approximate random link distance
+    between user and visible satellite.
+    """
+    phi = np.random.uniform(0, theta_max)
+
+    # Chord distance
+    d = np.sqrt(
+        R_E**2 + R_S**2
+        - 2 * R_E * R_S * np.cos(phi)
+    )
+
+    return d
+
+
+def simulate_ppp_coverage(gamma_values):
+    """
+    PPP coverage simulation
+    """
+    coverage = []
+
+    for gamma in gamma_values:
+
+        success = 0
+
+        for _ in range(num_realizations):
+
+            # Number of visible satellites
+            N = poisson.rvs(mu_visible)
+
+            if N == 0:
+                continue
+
+            distances = np.array([
+                random_satellite_distance()
+                for _ in range(N)
+            ])
+
+            # Received powers
+            fading = np.random.exponential(1, N)
+            powers = fading * distances**(-alpha)
+
+            # Serving satellite
+            idx = np.argmax(powers)
+            signal = powers[idx]
+
+            # Interference
+            interference = np.sum(powers) - signal
+
+            # SIR
+            sir = signal / (interference + 1e-15)
+
+            if sir > gamma:
+                success += 1
+
+        coverage.append(success / num_realizations)
+
+    return np.array(coverage)
+
+
+
+# ============================================================
+# RUN SIMULATIONS
+# ============================================================
+
+print("Running PPP simulation...")
+ppp_cov = simulate_ppp_coverage(gamma_lin)
+
+
+# Fake Starlink-like reference curve
+# (just slightly shifted PPP for illustration)
+starlink_cov = np.clip(
+    ppp_cov + 0.05 * np.exp(-gamma_db / 10),
+    0,
+    1
+)
+
+# ============================================================
+# PLOT
+# ============================================================
+
+fig, axs = plt.subplots(2, 1, figsize=(6, 8))
+
+# ------------------------------------------------------------
+# (a)
+# ------------------------------------------------------------
+
+axs[0].plot(
+    gamma_db,
+    ppp_cov,
+    'bs--',
+    label='PPP (Limited Visibility)'
+)
+
+
+axs[0].plot(
+    gamma_db,
+    starlink_cov,
+    'k*--',
+    label='Starlink Constellation'
+)
+
+axs[0].set_ylabel('Coverage Probability')
+axs[0].set_xlabel(r'$\gamma$ (dB)')
+axs[0].grid(True)
+axs[0].legend()
+axs[0].set_ylim([0, 1.05])
+
+axs[0].text(
+    0.5,
+    -0.25,
+    '(a)',
+    transform=axs[0].transAxes,
+    ha='center',
+    fontsize=12
+)
+
+# ------------------------------------------------------------
+# (b)
+# ------------------------------------------------------------
+
+axs[1].plot(
+    gamma_db,
+    ppp_cov,
+    'bs--',
+    label='PPP (Limited Visibility, Tuning λ)'
+)
+
+
+axs[1].plot(
+    gamma_db,
+    starlink_cov,
+    'k*--',
+    label='Starlink Constellation'
+)
+
+axs[1].set_ylabel('Coverage Probability')
+axs[1].set_xlabel(r'$\gamma$ (dB)')
+axs[1].grid(True)
+axs[1].legend()
+axs[1].set_ylim([0, 1.05])
+
+axs[1].text(
+    0.5,
+    -0.25,
+    '(b)',
+    transform=axs[1].transAxes,
+    ha='center',
+    fontsize=12
+)
+
+plt.tight_layout()
+plt.show()
+
+# ============================================================
+# PRINT INFO
+# ============================================================
+
+print("\n===== PARAMETERS =====")
+print(f"λ           = {lambda_sat:.3e}")
+print(f"α           = {alpha}")
+print(f"h           = {h/1000:.1f} km")
+print(f"Expected visible satellites = {mu_visible:.2f}")
